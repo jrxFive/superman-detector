@@ -1,0 +1,122 @@
+openapi: 3.0.0
+info:
+  version: '1.0.0'
+  title: 'Superman Detector'
+  description: 'Identifies logins by a user that occur from locations that are farther apart than a normal person can reasonably travel'
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+paths:
+  /v1:
+    post:
+      summary: Login Event POST payload
+      description:  Information about the time and ip that a user is connecting from
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/requestBodies/LoginEvent'
+            example:
+              username: 'bob'
+              unix_timestamp: 1514764800
+              event_uuid: '85ad929a-db03-4bf4-9541-8f728fa12e42'
+              ip_address: '206.81.252.6'
+      responses:
+        '201':
+          $ref: '#/components/responses/ProcessedLoginEvent'
+components:
+  examples:
+    LoginEvent:
+      summary: Login Event POST payload
+      value:
+        username: 'bob'
+        unix_timestamp: 1514764800
+        event_uuid: '85ad929a-db03-4bf4-9541-8f728fa12e42'
+        ip_address: '206.81.252.6'
+  requestBodies:
+    LoginEvent:
+      description: Connecting User Payload
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoginEvent'
+  responses:
+    ProcessedLoginEvent:
+      description: Processed User Login Payload
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProcessedLoginEvent'
+  schemas:
+    LoginEvent:
+      type: object
+      properties:
+        username:
+          type: string
+        unix_timestamp:
+          type: integer
+        event_uuid:
+          type: string
+        ip_address:
+          type: string
+      required:
+        - username
+        - unix_timestamp
+        - event_uuid
+        - ip_address
+    IpAccess:
+      type: object
+      properties:
+        IpAccess:
+          type: object
+          properties:
+            ip:
+              type: string
+            speed:
+              type: integer
+            lat:
+              type: number
+            lon:
+              type: number
+            radius:
+              type: integer
+            timestamp:
+              type: integer
+          required:
+            - ip
+            - lat
+            - lon
+            - radius
+            - timestamp
+    CurrentGeo:
+      type: object
+      properties:
+        currentGeo:
+          type: object
+          properties:
+            lat:
+              type: number
+            lon:
+              type: number
+            radius:
+              type: integer
+          required:
+            - lat
+            - lon
+            - radius
+    ProcessedLoginEvent:
+      type: object
+      properties:
+        currentGeo:
+          $ref: '#/components/schemas/CurrentGeo'
+        travelToCurrentGeoSuspicious:
+          type: boolean
+        travelFromCurrentGeoSuspicious:
+          type: boolean
+        precedingIpAccess:
+          $ref: '#/components/schemas/IpAccess'
+        subsequentIpAccess:
+          $ref: '#/components/schemas/IpAccess'
+      required:
+        - currentGeo
