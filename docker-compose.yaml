@@ -1,0 +1,29 @@
+version: "3.7"
+services:
+  superman-detector:
+    image: superman-detector
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      SERVICE_PORT: "8080"
+      SPEED_THRESHOLD_MILES_PER_HOUR: "500"
+      GEO_IP_DATABASE_FILE_LOCATION: "./GeoLite2-City.mmdb"
+      STATSD_HOST: "telegraf"
+      STATSD_PREFIX: "superman-detector"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://0.0.0.0:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  telegraf:
+    image: telegraf:1.13.2-alpine
+    ports:
+      - "9273:9273"
+    container_name: telegraf
+    volumes:
+      - ./telegraf.conf.local:/etc/telegraf/telegraf.conf:ro
