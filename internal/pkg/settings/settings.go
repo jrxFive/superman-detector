@@ -13,6 +13,11 @@ type envSpecification struct {
 	ServicePort                int           `default:"8080" split_words:"true"`
 	SpeedThresholdMilesPerHour int           `default:"500" split_words:"true"`
 	GeoIPDatabaseFileLocation  string        `default:"./GeoLite2-City.mmdb" split_words:"true"`
+	StatsdNamespace            string        `default:"superman-detector" split_words:"true"`
+	StatsdAddress              string        `default:"localhost:8125" split_words:"true"`
+	StatsdBufferPoolSize       int           `default:"1000" split_words:"true"`
+	SqlDialect                 string        `default:"sqlite3" split_words:"true"`
+	SqlConnectionString        string        `default:"/tmp/superman.db" split_words:"true"`
 }
 
 type Specification struct {

@@ -3,6 +3,7 @@ package healthz
 import (
 	"net/http"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/labstack/echo/v4"
 )
 
@@ -12,16 +13,19 @@ type Pinger interface {
 }
 
 type Healthz struct {
-	p Pinger
+	p            Pinger
+	statsdClient statsd.ClientInterface
 }
 
-func NewHealthz(p Pinger) Healthz {
+func NewHealthz(p Pinger, statsdClient statsd.ClientInterface) Healthz {
 	return Healthz{
-		p: p,
+		p:            p,
+		statsdClient: statsdClient,
 	}
 }
 
-// Verifies API can communicate with given DB.
+// Verifies API can communicate with given DB. Success/Passing returns 204,
+// Failing returns 503.
 func (h *Healthz) HeadHealthz(c echo.Context) error {
 	if err := h.p.Ping(); err != nil {
 		c.Logger().Error(err.Error())
@@ -31,7 +35,8 @@ func (h *Healthz) HeadHealthz(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-// Verifies API can communicate with given DB.
+// Verifies API can communicate with given DB. Success/Passing returns 200 with a response body,
+// Failing returns 503.
 func (h *Healthz) GetHealthz(c echo.Context) error {
 	if err := h.p.Ping(); err != nil {
 		c.Logger().Error(err.Error())

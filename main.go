@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
@@ -13,10 +14,11 @@ import (
 	v1 "github.com/jrxfive/superman-detector/handlers/v1"
 	"github.com/jrxfive/superman-detector/internal/pkg/settings"
 	"github.com/jrxfive/superman-detector/internal/pkg/signals"
+	customMiddleware "github.com/jrxfive/superman-detector/middleware"
 	"github.com/jrxfive/superman-detector/models"
+	"github.com/jrxfive/superman-detector/pkg/geoip"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/oschwald/geoip2-golang"
 )
 
 func signalMonitor(signalChannel chan os.Signal, e *echo.Echo) {
@@ -31,9 +33,23 @@ func signalMonitor(signalChannel chan os.Signal, e *echo.Echo) {
 func main() {
 	//Configuration
 	s := settings.NewSettings()
+	fmt.Println(s)
 
 	//Echo
 	e := echo.New()
+
+	//Statsd Telemetry
+	statsdClient, err := statsd.New(s.StatsdAddress, func(options *statsd.Options) error {
+		options.Namespace = s.StatsdNamespace
+		options.Tags = []string{fmt.Sprintf("app:%s", s.StatsdNamespace)}
+		options.BufferPoolSize = s.StatsdBufferPoolSize
+		options.Telemetry = false
+		return nil
+	})
+	defer func() {
+		err = statsdClient.Close()
+		e.Logger.Error(err)
+	}()
 
 	//Middleware
 	e.Use(middleware.Logger())
@@ -42,13 +58,14 @@ func main() {
 			return uuid.New().String()
 		},
 	}))
+	e.Use(customMiddleware.NewStats(statsdClient).Process)
 
 	//Signal Monitor
 	smc := signals.NewSignalMonitoringChannel()
 	go signalMonitor(smc, e)
 
 	//Databases
-	geoDB, err := geoip2.Open(s.GeoIPDatabaseFileLocation)
+	geoDB, err := geoip.NewDefaultLocator(s)
 	if err != nil {
 		e.Logger.Fatalf("failed to open geo database err:%s", err.Error())
 	}
@@ -57,7 +74,7 @@ func main() {
 		e.Logger.Error(err)
 	}()
 
-	db, err := gorm.Open("sqlite3", "/tmp/superman.db")
+	db, err := gorm.Open(s.SqlDialect, s.SqlConnectionString)
 	if err != nil {
 		e.Logger.Fatalf("failed to open database err:%s", err.Error())
 	}
@@ -67,20 +84,22 @@ func main() {
 	}()
 
 	//Database create if missing, no-op if created
-	db.CreateTable(&models.LoginEvent{})
+	if !db.HasTable(&models.LoginEvent{}) {
+		db.CreateTable(&models.LoginEvent{})
+	}
 
 	//Handler Creation
-	health := healthz.NewHealthz(db.DB())
+	health := healthz.NewHealthz(db.DB(), statsdClient)
 
 	//v1 Handler Creation
-	login := v1.NewLogin(db, geoDB, s)
+	login := v1.NewLogin(db, geoDB, statsdClient, s)
 
 	//Handlers Registation
 	e.GET("/healthz", health.GetHealthz)
 	e.HEAD("/healthz", health.HeadHealthz)
 
-	loginGroup := e.Group("/v1")
-	loginGroup.POST("", login.PostLogin)
+	v1Group := e.Group("/v1")
+	v1Group.POST("", login.PostLogin)
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", s.ServicePort),

@@ -22,7 +22,7 @@ ENV SERVICE_PORT=$SSERVICE_PORT
 EXPOSE $SERVICE_PORT
 
 RUN apk update \
-    && apk add --no-cache ca-certificates \
+    && apk add --no-cache ca-certificates curl \
     && rm -rf /var/cache/apk/*
 
 WORKDIR /app/

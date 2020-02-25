@@ -3,14 +3,15 @@ package v1
 import (
 	"net/http"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/asaskevich/govalidator"
 	"github.com/jinzhu/gorm"
-	"github.com/jrxfive/superman-detector/internal/pkg/calculations"
 	"github.com/jrxfive/superman-detector/internal/pkg/settings"
 	"github.com/jrxfive/superman-detector/models"
+	"github.com/jrxfive/superman-detector/pkg/calculations"
+	"github.com/jrxfive/superman-detector/pkg/geoip"
 	"github.com/jrxfive/superman-detector/schemas"
 	"github.com/labstack/echo/v4"
-	"github.com/oschwald/geoip2-golang"
 )
 
 var (
@@ -22,20 +23,22 @@ var (
 )
 
 type Login struct {
-	db       *gorm.DB
-	geoDB    *geoip2.Reader
-	settings settings.Specification
+	db           *gorm.DB
+	geoDB        geoip.Locator
+	settings     settings.Specification
+	statsdClient statsd.ClientInterface
 }
 
-func NewLogin(db *gorm.DB, geoDB *geoip2.Reader, settings settings.Specification) Login {
+func NewLogin(db *gorm.DB, geoDB geoip.Locator, statsdClient statsd.ClientInterface, settings settings.Specification) Login {
 	if !db.HasTable(&models.LoginEvent{}) {
 		db.CreateTable(&models.LoginEvent{})
 	}
 
 	return Login{
-		db:       db,
-		geoDB:    geoDB,
-		settings: settings,
+		db:           db,
+		geoDB:        geoDB,
+		settings:     settings,
+		statsdClient: statsdClient,
 	}
 }
 
@@ -92,7 +95,7 @@ func (l *Login) PostLogin(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	requestGeoDetails, err := l.geoDB.City(loginEvent.IPAddress.IP())
+	requestGeoDetails, err := l.geoDB.Locate(loginEvent.IPAddress.IP())
 	if err != nil {
 		c.Logger().Errorf("geo ip:%s lookup failed", loginEvent.IPAddress.IP().String())
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
@@ -103,9 +106,9 @@ func (l *Login) PostLogin(c echo.Context) error {
 		Timestamp: loginEvent.TimeStamp,
 		EventUuid: loginEvent.EventUuid,
 		IPAddress: loginEvent.IPAddress.IP().String(),
-		Latitude:  requestGeoDetails.Location.Latitude,
-		Longitude: requestGeoDetails.Location.Longitude,
-		Radius:    requestGeoDetails.Location.AccuracyRadius,
+		Latitude:  requestGeoDetails.Latitude,
+		Longitude: requestGeoDetails.Longitude,
+		Radius:    requestGeoDetails.Radius,
 	}
 
 	result := l.db.Create(currentIPAccessEvent)
@@ -116,9 +119,9 @@ func (l *Login) PostLogin(c echo.Context) error {
 
 	response := schemas.ProcessedLoginEvent{
 		CurrentGeo: schemas.Geo{
-			Lat:    requestGeoDetails.Location.Latitude,
-			Lon:    requestGeoDetails.Location.Longitude,
-			Radius: requestGeoDetails.Location.AccuracyRadius,
+			Lat:    requestGeoDetails.Latitude,
+			Lon:    requestGeoDetails.Longitude,
+			Radius: requestGeoDetails.Radius,
 		},
 		TravelToCurrentGeoSuspicious:   false,
 		TravelFromCurrentGeoSuspicious: false,

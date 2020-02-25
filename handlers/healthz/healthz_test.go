@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -25,7 +26,8 @@ func TestHealthz_GetHealthzPass(t *testing.T) {
 	defer e.Close()
 
 	mp := &MockPinger{}
-	h := NewHealthz(mp)
+	statsdClient := &statsd.NoOpClient{}
+	h := NewHealthz(mp, statsdClient)
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()
@@ -44,7 +46,8 @@ func TestHealthz_GetHealthzFail(t *testing.T) {
 	defer e.Close()
 
 	mp := &MockPinger{}
-	h := NewHealthz(mp)
+	statsdClient := &statsd.NoOpClient{}
+	h := NewHealthz(mp, statsdClient)
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()
@@ -66,7 +69,8 @@ func TestHealthz_HeadHealthz(t *testing.T) {
 	defer e.Close()
 
 	mp := &MockPinger{}
-	h := NewHealthz(mp)
+	statsdClient := &statsd.NoOpClient{}
+	h := NewHealthz(mp, statsdClient)
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()
@@ -84,7 +88,8 @@ func TestHealthz_HeadHealthzFail(t *testing.T) {
 	defer e.Close()
 
 	mp := &MockPinger{}
-	h := NewHealthz(mp)
+	statsdClient := &statsd.NoOpClient{}
+	h := NewHealthz(mp, statsdClient)
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()

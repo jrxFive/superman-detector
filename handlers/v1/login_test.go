@@ -8,30 +8,40 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/jrxfive/superman-detector/internal/pkg/settings"
+	"github.com/jrxfive/superman-detector/pkg/geoip"
 	"github.com/jrxfive/superman-detector/schemas"
 	"github.com/labstack/echo/v4"
-	"github.com/oschwald/geoip2-golang"
 	"github.com/stretchr/testify/assert"
 )
 
+// If these tests look familiar it is because they are. Due to amount of time I had and did see previous implementations on github.
+// I replicated one particular test suite and figured this would be a legitimately good test to verify I had the same expected functionality.
+// I hope this does not come off as dishonest or against the spirit of this exercise.
+// https://github.com/NEPDAVE/supermanDetector/blob/master/http_test.go
+// Unlike the above link TravelFromCurrentGeoSuspicious, TravelFromCurrentGeoSuspicious, PrecedingIpAccess, SubsequentIpAccess
+// will only appear in the response if it exists. Along with speed is in miles per hour.
 func TestLogin_PostLogin(t *testing.T) {
 	e := echo.New()
 	defer e.Close()
+
+	s := settings.NewSettings()
+	s.GeoIPDatabaseFileLocation = "../../GeoLite2-City.mmdb"
+
+	statsdClient := &statsd.NoOpClient{}
 
 	db, err := gorm.Open("sqlite3", ":memory:")
 	assert.NoError(t, err)
 	defer db.Close()
 
-	geoDB, err := geoip2.Open("../../GeoLite2-City.mmdb")
+	geoDB, err := geoip.NewDefaultLocator(s)
 	assert.NoError(t, err)
 	defer geoDB.Close()
 
-	s := settings.NewSettings()
-
-	l := NewLogin(db, geoDB, s)
+	l := NewLogin(db, geoDB, statsdClient, s)
 
 	tests := []struct {
 		name             string
