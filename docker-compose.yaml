@@ -8,11 +8,13 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SERVICE_PORT: "8080"
-      SPEED_THRESHOLD_MILES_PER_HOUR: "500"
-      GEO_IP_DATABASE_FILE_LOCATION: "./GeoLite2-City.mmdb"
-      STATSD_HOST: "telegraf"
-      STATSD_PREFIX: "superman-detector"
+      DETECTOR_API_SERVICE_PORT: "8080"
+      DETECTOR_API_SPEED_THRESHOLD_MILES_PER_HOUR: "500"
+      DETECTOR_API_GEO_IP_DATABASE_FILE_LOCATION: "./GeoLite2-City.mmdb"
+      DETECTOR_API_STATSD_ADDRESS: "telegraf:8125"
+      DETECTOR_API_STATSD_NAMESPACE: "superman-detector"
+    volumes:
+      - ./GeoLite2-City.mmdb:/app/GeoLite2-City.mmdb:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://0.0.0.0:8080/healthz"]
       interval: 10s

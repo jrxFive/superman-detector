@@ -28,7 +28,7 @@ build.docker:
 test: test.unit
 
 test.unit: fmt vet
-	go test -v -race -cover ./...
+	go test -race -cover ./...
 
 clean:
 	-rm $(BINARY_NAME)
