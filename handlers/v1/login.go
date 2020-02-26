@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -20,6 +21,8 @@ var (
 
 	loginSubsequentQuery      = "username = ? and timestamp > ?"
 	loginSubsequentQueryOrder = "timestamp"
+
+	ErrRecordNotFound = errors.New("query returned no records")
 )
 
 type Login struct {
@@ -48,7 +51,7 @@ func (l *Login) suspiciousTravel(speed int) bool {
 
 // Given the current POST'd event and schema.IPAccess assign values if a record is found from the query results. This
 // probably could have used reflection but would have certainly increased the complexity of this function.
-func (l *Login) setIPAccessRequestRecord(currentEvent models.LoginEvent, whereQueryClause, orderQueryClause string, responseIPAccess *schemas.IPAccess) bool {
+func (l *Login) setIPAccessRequestRecord(currentEvent models.LoginEvent, whereQueryClause, orderQueryClause string, responseIPAccess *schemas.IPAccess) (bool, error) {
 	queriedAccessEvent := &models.LoginEvent{}
 
 	ipAccessRequest := l.db.
@@ -62,10 +65,13 @@ func (l *Login) setIPAccessRequestRecord(currentEvent models.LoginEvent, whereQu
 			CoordinatesDistance(currentEvent.Latitude, currentEvent.Longitude, queriedAccessEvent.Latitude, queriedAccessEvent.Longitude)
 
 		if err != nil {
-			return false
+			return false, err
 		}
 
-		speed := calculations.SpeedMilesPerHour(currentEvent.Timestamp, queriedAccessEvent.Timestamp, distanceMiles)
+		speed, err := calculations.SpeedMilesPerHour(currentEvent.Timestamp, queriedAccessEvent.Timestamp, distanceMiles)
+		if err != nil {
+			return false, err
+		}
 
 		responseIPAccess.Ip = queriedAccessEvent.IPAddress
 		responseIPAccess.Speed = speed
@@ -75,10 +81,10 @@ func (l *Login) setIPAccessRequestRecord(currentEvent models.LoginEvent, whereQu
 			Radius: queriedAccessEvent.Radius,
 		}
 		responseIPAccess.Timestamp = queriedAccessEvent.Timestamp
-		return true
+		return true, nil
 	}
 
-	return false
+	return false, ErrRecordNotFound
 }
 
 func (l *Login) PostLogin(c echo.Context) error {
@@ -129,14 +135,18 @@ func (l *Login) PostLogin(c echo.Context) error {
 		SubsequentIpAccess:             &schemas.IPAccess{},
 	}
 
+	var updated bool
+
 	//If no record was found set struct value to nil so it does not appear in response
-	if updated := l.setIPAccessRequestRecord(*currentIPAccessEvent, loginPrecedingQuery, loginPrecedingQueryOrder, response.PrecedingIpAccess); !updated {
+	if updated, err = l.setIPAccessRequestRecord(*currentIPAccessEvent, loginPrecedingQuery, loginPrecedingQueryOrder, response.PrecedingIpAccess); !updated {
+		c.Logger().Warn(err)
 		response.PrecedingIpAccess = nil
 	} else {
 		response.TravelToCurrentGeoSuspicious = l.suspiciousTravel(response.PrecedingIpAccess.Speed)
 	}
 
-	if updated := l.setIPAccessRequestRecord(*currentIPAccessEvent, loginSubsequentQuery, loginSubsequentQueryOrder, response.SubsequentIpAccess); !updated {
+	if updated, err = l.setIPAccessRequestRecord(*currentIPAccessEvent, loginSubsequentQuery, loginSubsequentQueryOrder, response.SubsequentIpAccess); !updated {
+		c.Logger().Warn(err)
 		response.SubsequentIpAccess = nil
 	} else {
 		response.TravelFromCurrentGeoSuspicious = l.suspiciousTravel(response.SubsequentIpAccess.Speed)
