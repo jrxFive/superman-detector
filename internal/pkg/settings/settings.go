@@ -8,6 +8,7 @@ import (
 
 // Configuration settings from environment variables
 type envSpecification struct {
+	RequestBodyLimit           string        `default:"1M"` //https://echo.labstack.com/middleware/body-limit
 	ServerReadTimeoutSeconds   time.Duration `default:"5s" split_words:"true"`
 	ServerWriteTimeoutSeconds  time.Duration `default:"10s" split_words:"true"`
 	ServicePort                int           `default:"8080" split_words:"true"`

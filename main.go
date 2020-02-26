@@ -28,12 +28,12 @@ func signalMonitor(signalChannel chan os.Signal, e *echo.Echo) {
 	if err != nil {
 		e.Logger.Warnf("failed to gracefully shutdown", s.String())
 	}
+	os.Exit(0)
 }
 
 func main() {
 	//Configuration
 	s := settings.NewSettings()
-	fmt.Println(s)
 
 	//Echo
 	e := echo.New()
@@ -53,11 +53,27 @@ func main() {
 
 	//Middleware
 	e.Use(middleware.Logger())
+
 	e.Use(middleware.RequestIDWithConfig(middleware.RequestIDConfig{
 		Generator: func() string {
 			return uuid.New().String()
 		},
 	}))
+
+	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
+		Level: 5,
+	}))
+
+	e.Use(middleware.SecureWithConfig(middleware.SecureConfig{
+		XSSProtection:         "",
+		ContentTypeNosniff:    "",
+		XFrameOptions:         "",
+		HSTSMaxAge:            3600,
+		ContentSecurityPolicy: "default-src 'self'",
+	}))
+
+	e.Use(middleware.BodyLimit(s.RequestBodyLimit))
+
 	e.Use(customMiddleware.NewStats(statsdClient).Process)
 
 	//Signal Monitor
@@ -94,7 +110,7 @@ func main() {
 	//v1 Handler Creation
 	login := v1.NewLogin(db, geoDB, statsdClient, s)
 
-	//Handlers Registation
+	//Handlers Registration
 	e.GET("/healthz", health.GetHealthz)
 	e.HEAD("/healthz", health.HeadHealthz)
 

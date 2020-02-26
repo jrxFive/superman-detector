@@ -16,6 +16,8 @@ Propagation of Error.
 travel distance. These could be possibly be cached using memoization(increased memory usage) or a caching layer
 LRU (redis). GeoIP rows could also have been inserted into an already created sqlite database as well.
 
+- Pprof could be added with an auth middleware protecting the route or 
+a profiling library such as [Stackdriver Profiler]("cloud.google.com/go/profiler"). 
 
 ## Running
 As [12 Factor](https://12factor.net/) suggests configuration should be stored in the

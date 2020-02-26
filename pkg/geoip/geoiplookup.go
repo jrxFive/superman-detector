@@ -34,7 +34,7 @@ func NewDefaultLocator(s settings.Specification) (Locator, error) {
 	return &DefaultLocator{db: geoDB}, nil
 }
 
-// Locate latitude, longitude
+// Locate latitude, longitude and uncertainty radius based on IP
 func (d *DefaultLocator) Locate(ip net.IP) (*Location, error) {
 	requestGeoDetails, err := d.db.City(ip)
 	if err != nil {
